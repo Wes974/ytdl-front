@@ -21,6 +21,11 @@ final class AppViewModel: ObservableObject {
             defaults.set(autoOpenInFinder, forKey: Keys.autoOpenInFinder)
         }
     }
+    @Published var isLogPanelExpanded = false {
+        didSet {
+            defaults.set(isLogPanelExpanded, forKey: Keys.isLogPanelExpanded)
+        }
+    }
 
     private let binaryManager: BinaryManager
     private let updateService: UpdateService
@@ -85,6 +90,7 @@ final class AppViewModel: ObservableObject {
             self.outputDirectory = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask)[0]
         }
         self.autoOpenInFinder = defaults.bool(forKey: Keys.autoOpenInFinder)
+        self.isLogPanelExpanded = defaults.bool(forKey: Keys.isLogPanelExpanded)
     }
 
     func bootstrapIfNeeded() async {
@@ -436,5 +442,6 @@ final class AppViewModel: ObservableObject {
     private enum Keys {
         static let outputDirectoryPath = "app.outputDirectoryPath"
         static let autoOpenInFinder = "app.autoOpenInFinder"
+        static let isLogPanelExpanded = "app.isLogPanelExpanded"
     }
 }

@@ -48,7 +48,7 @@ struct ContentView: View {
                     .background(Color.blue.opacity(0.15))
                     .cornerRadius(8)
                 Spacer()
-                Toggle("Ouvrir automatiquement", isOn: $viewModel.autoOpenInFinder)
+                Toggle("Afficher le fichier termine", isOn: $viewModel.autoOpenInFinder)
                     .toggleStyle(.switch)
                     .font(.caption)
             }
@@ -189,21 +189,38 @@ struct ContentView: View {
         GroupBox(label: Text("Journal")) {
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
+                    Button(action: {
+                        viewModel.isLogPanelExpanded.toggle()
+                    }) {
+                        HStack(spacing: 6) {
+                            Image(systemName: viewModel.isLogPanelExpanded ? "chevron.down" : "chevron.right")
+                                .font(.caption)
+                            Text(viewModel.isLogPanelExpanded ? "Masquer le journal" : "Afficher le journal")
+                                .font(.caption)
+                        }
+                    }
+                    .buttonStyle(.plain)
+
                     Text("\(viewModel.logs.count) ligne(s)")
                         .font(.caption)
                         .foregroundColor(.secondary)
                     Spacer()
-                    Button("Nettoyer") {
-                        viewModel.clearLogs()
+
+                    if viewModel.isLogPanelExpanded {
+                        Button("Nettoyer") {
+                            viewModel.clearLogs()
+                        }
                     }
                 }
 
-                ScrollView {
-                    Text(viewModel.logs.joined(separator: "\n"))
-                        .font(.system(size: 12, weight: .regular, design: .monospaced))
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                if viewModel.isLogPanelExpanded {
+                    ScrollView {
+                        Text(viewModel.logs.joined(separator: "\n"))
+                            .font(.system(size: 12, weight: .regular, design: .monospaced))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .frame(minHeight: 120)
                 }
-                .frame(minHeight: 120)
             }
         }
     }
