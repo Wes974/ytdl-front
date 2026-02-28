@@ -2,10 +2,10 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-APP_NAME="YTDLFront"
+APP_BUNDLE_NAME="Video Downloader"
 DIST_DIR="$ROOT_DIR/dist"
-APP_BUNDLE="$DIST_DIR/$APP_NAME.app"
-DMG_PATH="$DIST_DIR/$APP_NAME.dmg"
+APP_BUNDLE="$DIST_DIR/$APP_BUNDLE_NAME.app"
+DMG_PATH="$DIST_DIR/$APP_BUNDLE_NAME.dmg"
 STAGING_DIR="$DIST_DIR/dmg-staging"
 
 SIGNING_IDENTITY="${SIGNING_IDENTITY:-Developer ID Application: Ouwéis Moolna (LT9VN8QXU9)}"
@@ -43,7 +43,7 @@ cp -R "$APP_BUNDLE" "$STAGING_DIR/"
 ln -s /Applications "$STAGING_DIR/Applications"
 
 rm -f "$DMG_PATH"
-hdiutil create -volname "$APP_NAME" -srcfolder "$STAGING_DIR" -ov -format UDZO "$DMG_PATH"
+hdiutil create -volname "$APP_BUNDLE_NAME" -srcfolder "$STAGING_DIR" -ov -format UDZO "$DMG_PATH"
 
 echo "Submitting DMG for notarization"
 xcrun notarytool submit "$DMG_PATH" --keychain-profile "$NOTARY_PROFILE" --wait
@@ -51,5 +51,9 @@ xcrun notarytool submit "$DMG_PATH" --keychain-profile "$NOTARY_PROFILE" --wait
 echo "Stapling app and DMG"
 xcrun stapler staple "$APP_BUNDLE"
 xcrun stapler staple "$DMG_PATH"
+
+echo "Validating notarization tickets"
+xcrun stapler validate "$APP_BUNDLE"
+xcrun stapler validate "$DMG_PATH"
 
 echo "Release complete: $DMG_PATH"
