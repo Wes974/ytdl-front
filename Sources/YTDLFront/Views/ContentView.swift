@@ -6,12 +6,13 @@ struct ContentView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             header
+            metricsStrip
             inputPanel
             queuePanel
             logPanel
         }
         .padding(16)
-        .frame(minWidth: 920, minHeight: 700)
+        .frame(minWidth: 980, minHeight: 760)
         .onAppear {
             Task {
                 await viewModel.bootstrapIfNeeded()
@@ -30,28 +31,56 @@ struct ContentView: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("YTDLFront")
-                .font(.title2).bold()
-            Text("Telechargement video MP4 garanti avec file multi-liens (1 a la fois)")
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Video Downloader")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                Text("V2")
+                    .font(.caption)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(Color.blue.opacity(0.15))
+                    .cornerRadius(8)
+                Spacer()
+                Toggle("Ouvrir automatiquement", isOn: $viewModel.autoOpenInFinder)
+                    .toggleStyle(.switch)
+                    .font(.caption)
+            }
+
+            Text("Colle une ou plusieurs URLs, la file traite une video a la fois pour fiabilite max sur anciens Mac.")
                 .foregroundColor(.secondary)
 
             HStack(spacing: 12) {
                 Text("yt-dlp: \(viewModel.currentYTDLPVersion)")
+                    .font(.callout)
                 if let version = viewModel.availableUpdateVersion {
                     Text("MAJ dispo: \(version)")
+                        .font(.callout)
                         .foregroundColor(.orange)
                 }
                 Spacer()
                 Button("Verifier les mises a jour") {
                     viewModel.checkForUpdatesNow()
                 }
+                .disabled(viewModel.isPreparing)
             }
-            .font(.callout)
 
             Text(viewModel.statusLine)
                 .font(.caption)
                 .foregroundColor(.secondary)
+        }
+    }
+
+    private var metricsStrip: some View {
+        HStack(spacing: 10) {
+            MetricPill(title: "Total", value: "\(viewModel.totalCount)", tint: .gray)
+            MetricPill(title: "En attente", value: "\(viewModel.queuedCount)", tint: .secondary)
+            MetricPill(title: "En cours", value: "\(viewModel.runningCount)", tint: .blue)
+            MetricPill(title: "Termines", value: "\(viewModel.completedCount)", tint: .green)
+            MetricPill(title: "Erreurs", value: "\(viewModel.failedCount)", tint: .red)
+            MetricPill(title: "Annules", value: "\(viewModel.cancelledCount)", tint: .orange)
+            Spacer()
         }
     }
 
@@ -60,20 +89,23 @@ struct ContentView: View {
             VStack(alignment: .leading, spacing: 10) {
                 TextEditor(text: $viewModel.inputText)
                     .font(.system(.body, design: .monospaced))
-                    .frame(height: 110)
+                    .frame(height: 120)
                     .overlay(
-                        RoundedRectangle(cornerRadius: 6)
-                            .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Color.secondary.opacity(0.25), lineWidth: 1)
                     )
 
                 HStack {
                     Button("Coller") {
                         viewModel.pasteFromClipboard()
                     }
+                    .disabled(viewModel.isPreparing)
+
                     Button("Ajouter a la file") {
                         viewModel.enqueueLinks()
                     }
                     .keyboardShortcut(.defaultAction)
+                    .disabled(viewModel.isPreparing || viewModel.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
                     Spacer()
 
@@ -85,6 +117,8 @@ struct ContentView: View {
                     Button("Choisir...") {
                         viewModel.chooseOutputFolder()
                     }
+                    .disabled(viewModel.isPreparing)
+
                     Button("Ouvrir") {
                         viewModel.openOutputFolder()
                     }
@@ -98,17 +132,37 @@ struct ContentView: View {
         GroupBox(label: Text("File d'attente")) {
             VStack(spacing: 8) {
                 HStack {
-                    Text("\(viewModel.queueItems.count) element(s)")
+                    Text("\(viewModel.totalCount) element(s)")
                         .font(.callout)
                         .foregroundColor(.secondary)
+
+                    if viewModel.totalCount > 0 {
+                        ProgressView(value: viewModel.progressSummary)
+                            .frame(width: 180)
+                            .controlSize(.small)
+                    }
+
                     Spacer()
+
                     if viewModel.isQueueRunning {
                         ProgressView()
                             .controlSize(.small)
                     }
+
+                    Button("Retenter les erreurs") {
+                        viewModel.retryFailedItems()
+                    }
+                    .disabled(!viewModel.hasFailedItems)
+
+                    Button("Copier liens en erreur") {
+                        viewModel.copyFailedLinks()
+                    }
+                    .disabled(!viewModel.hasFailedItems)
+
                     Button("Vider termines") {
                         viewModel.clearFinished()
                     }
+                    .disabled(!viewModel.canClearFinished)
                 }
 
                 List(viewModel.queueItems) { item in
@@ -116,10 +170,11 @@ struct ContentView: View {
                         item: item,
                         onCancel: { viewModel.cancel(itemID: item.id) },
                         onRetry: { viewModel.retry(itemID: item.id) },
-                        onRemove: { viewModel.remove(itemID: item.id) }
+                        onRemove: { viewModel.remove(itemID: item.id) },
+                        onReveal: { viewModel.revealDownloadedFile(itemID: item.id) }
                     )
                 }
-                .frame(minHeight: 260)
+                .frame(minHeight: 300)
             }
             .padding(.top, 2)
         }
@@ -127,13 +182,49 @@ struct ContentView: View {
 
     private var logPanel: some View {
         GroupBox(label: Text("Journal")) {
-            ScrollView {
-                Text(viewModel.logs.joined(separator: "\n"))
-                    .font(.system(size: 12, weight: .regular, design: .monospaced))
-                    .frame(maxWidth: .infinity, alignment: .leading)
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("\(viewModel.logs.count) ligne(s)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Spacer()
+                    Button("Nettoyer") {
+                        viewModel.clearLogs()
+                    }
+                }
+
+                ScrollView {
+                    Text(viewModel.logs.joined(separator: "\n"))
+                        .font(.system(size: 12, weight: .regular, design: .monospaced))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .frame(minHeight: 120)
             }
-            .frame(minHeight: 120)
         }
+    }
+}
+
+private struct MetricPill: View {
+    let title: String
+    let value: String
+    let tint: Color
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Circle()
+                .fill(tint)
+                .frame(width: 8, height: 8)
+            Text(title)
+                .font(.caption)
+                .foregroundColor(.secondary)
+            Text(value)
+                .font(.callout)
+                .fontWeight(.semibold)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(tint.opacity(0.08))
+        .cornerRadius(10)
     }
 }
 
@@ -142,12 +233,14 @@ private struct QueueRow: View {
     let onCancel: () -> Void
     let onRetry: () -> Void
     let onRemove: () -> Void
+    let onReveal: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 7) {
             HStack(spacing: 8) {
                 Text(item.state.label)
                     .font(.caption)
+                    .fontWeight(.semibold)
                     .foregroundColor(statusColor)
                 Text(item.urlString)
                     .lineLimit(1)
@@ -155,10 +248,8 @@ private struct QueueRow: View {
                 Spacer()
             }
 
-            if item.state == .running || item.state == .completed {
-                ProgressView(value: item.progress)
-                    .controlSize(.small)
-            }
+            ProgressView(value: item.state == .completed ? 1 : item.progress)
+                .controlSize(.small)
 
             HStack {
                 Text(item.detail)
@@ -168,6 +259,10 @@ private struct QueueRow: View {
 
                 Spacer()
 
+                if item.state == .completed, item.outputPath != nil {
+                    Button("Afficher", action: onReveal)
+                        .buttonStyle(.link)
+                }
                 if item.state == .running || item.state == .queued {
                     Button("Annuler", action: onCancel)
                         .buttonStyle(.link)

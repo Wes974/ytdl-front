@@ -16,6 +16,7 @@ enum DownloadRunnerError: LocalizedError {
 
 enum DownloadEvent {
     case progress(Double)
+    case status(String)
     case log(String)
 }
 
@@ -113,6 +114,10 @@ final class DownloadRunner: @unchecked Sendable {
                 if let percent = DownloadRunner.extractProgress(from: line) {
                     onEvent(.progress(percent))
                 }
+
+                if let detail = DownloadRunner.extractStatusDetail(from: line) {
+                    onEvent(.status(detail))
+                }
             }
 
             outputPipe.fileHandleForReading.readabilityHandler = { handle in
@@ -178,6 +183,23 @@ final class DownloadRunner: @unchecked Sendable {
         }
 
         return min(max(rawPercent / 100.0, 0), 1)
+    }
+
+    private static func extractStatusDetail(from line: String) -> String? {
+        if line.hasPrefix("[download]") {
+            let detail = line.replacingOccurrences(of: "[download]", with: "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if detail.isEmpty {
+                return nil
+            }
+            return detail
+        }
+
+        if line.hasPrefix("[Merger]") || line.hasPrefix("[ffmpeg]") {
+            return line
+        }
+
+        return nil
     }
 }
 

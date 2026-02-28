@@ -16,14 +16,61 @@ final class AppViewModel: ObservableObject {
 
     @Published var showUpdatePrompt = false
     @Published var updatePromptMessage = ""
+    @Published var autoOpenInFinder = false {
+        didSet {
+            defaults.set(autoOpenInFinder, forKey: Keys.autoOpenInFinder)
+        }
+    }
 
     private let binaryManager: BinaryManager
     private let updateService: UpdateService
     private let downloadRunner: DownloadRunner
+    private let defaults = UserDefaults.standard
 
     private var queueTask: Task<Void, Never>?
     private var processTokens: [UUID: ProcessToken] = [:]
     private var didBootstrap = false
+
+    var queuedCount: Int {
+        queueItems.filter { $0.state == .queued }.count
+    }
+
+    var totalCount: Int {
+        queueItems.count
+    }
+
+    var runningCount: Int {
+        queueItems.filter { $0.state == .running }.count
+    }
+
+    var completedCount: Int {
+        queueItems.filter { $0.state == .completed }.count
+    }
+
+    var failedCount: Int {
+        queueItems.filter { $0.state == .failed }.count
+    }
+
+    var cancelledCount: Int {
+        queueItems.filter { $0.state == .cancelled }.count
+    }
+
+    var canClearFinished: Bool {
+        queueItems.contains { $0.state == .completed || $0.state == .failed || $0.state == .cancelled }
+    }
+
+    var progressSummary: Double {
+        guard !queueItems.isEmpty else {
+            return 0
+        }
+
+        let finished = queueItems.filter { $0.state == .completed || $0.state == .failed || $0.state == .cancelled }.count
+        return Double(finished) / Double(queueItems.count)
+    }
+
+    var hasFailedItems: Bool {
+        queueItems.contains { $0.state == .failed }
+    }
 
     init(
         binaryManager: BinaryManager = BinaryManager(),
@@ -32,7 +79,12 @@ final class AppViewModel: ObservableObject {
         self.binaryManager = binaryManager
         self.updateService = updateService
         self.downloadRunner = DownloadRunner(binaryManager: binaryManager)
-        self.outputDirectory = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask)[0]
+        if let storedPath = defaults.string(forKey: Keys.outputDirectoryPath), !storedPath.isEmpty {
+            self.outputDirectory = URL(fileURLWithPath: storedPath, isDirectory: true)
+        } else {
+            self.outputDirectory = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask)[0]
+        }
+        self.autoOpenInFinder = defaults.bool(forKey: Keys.autoOpenInFinder)
     }
 
     func bootstrapIfNeeded() async {
@@ -110,12 +162,44 @@ final class AppViewModel: ObservableObject {
 
         if panel.runModal() == .OK, let selected = panel.url {
             outputDirectory = selected
+            defaults.set(selected.path, forKey: Keys.outputDirectoryPath)
             appendLog("Dossier de sortie: \(selected.path)")
         }
     }
 
     func openOutputFolder() {
         NSWorkspace.shared.open(outputDirectory)
+    }
+
+    func revealDownloadedFile(itemID: UUID) {
+        guard let item = queueItems.first(where: { $0.id == itemID }),
+              let outputPath = item.outputPath else {
+            return
+        }
+
+        let fileURL = URL(fileURLWithPath: outputPath)
+        NSWorkspace.shared.activateFileViewerSelecting([fileURL])
+    }
+
+    func copyFailedLinks() {
+        let failedLinks = queueItems
+            .filter { $0.state == .failed }
+            .map(\.urlString)
+
+        guard !failedLinks.isEmpty else {
+            appendLog("Aucun lien en erreur a copier.")
+            return
+        }
+
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(failedLinks.joined(separator: "\n"), forType: .string)
+        appendLog("\(failedLinks.count) lien(s) en erreur copies dans le presse-papiers.")
+    }
+
+    func clearLogs() {
+        logs.removeAll(keepingCapacity: true)
+        appendLog("Journal nettoye.")
     }
 
     func checkForUpdatesNow() {
@@ -192,6 +276,24 @@ final class AppViewModel: ObservableObject {
         queueItems.removeAll { $0.state == .completed || $0.state == .failed || $0.state == .cancelled }
     }
 
+    func retryFailedItems() {
+        var retried = 0
+        for index in queueItems.indices {
+            if queueItems[index].state == .failed || queueItems[index].state == .cancelled {
+                queueItems[index].state = .queued
+                queueItems[index].progress = 0
+                queueItems[index].detail = "En attente"
+                queueItems[index].outputPath = nil
+                retried += 1
+            }
+        }
+
+        if retried > 0 {
+            appendLog("\(retried) element(s) remis en file.")
+            startQueueIfNeeded()
+        }
+    }
+
     private func startQueueIfNeeded() {
         guard queueTask == nil else {
             return
@@ -245,6 +347,9 @@ final class AppViewModel: ObservableObject {
                     queueItems[index].detail = "Termine"
                     queueItems[index].outputPath = result.outputURL.path
                     appendLog("Termine: \(result.outputURL.lastPathComponent)")
+                    if autoOpenInFinder {
+                        NSWorkspace.shared.activateFileViewerSelecting([result.outputURL])
+                    }
                 }
             } catch is CancellationError {
                 if let index = queueItems.firstIndex(where: { $0.id == itemID }) {
@@ -273,6 +378,8 @@ final class AppViewModel: ObservableObject {
         case .progress(let value):
             queueItems[index].progress = value
             queueItems[index].detail = "\(Int(value * 100))%"
+        case .status(let detail):
+            queueItems[index].detail = detail
         case .log(let line):
             if line.lowercased().contains("error") {
                 appendLog("[\(shortID(itemID))] \(line)")
@@ -325,4 +432,9 @@ final class AppViewModel: ObservableObject {
         formatter.dateFormat = "HH:mm:ss"
         return formatter
     }()
+
+    private enum Keys {
+        static let outputDirectoryPath = "app.outputDirectoryPath"
+        static let autoOpenInFinder = "app.autoOpenInFinder"
+    }
 }
