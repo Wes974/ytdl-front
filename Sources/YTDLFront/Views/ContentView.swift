@@ -4,14 +4,19 @@ struct ContentView: View {
     @StateObject private var viewModel = AppViewModel()
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            header
-            metricsStrip
-            inputPanel
-            queuePanel
-            logPanel
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                header
+                metricsStrip
+                inputPanel
+                queuePanel
+                logPanel
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 16)
+            .padding(.bottom, 16)
+            .padding(.top, 24)
         }
-        .padding(16)
         .frame(minWidth: 980, minHeight: 760)
         .onAppear {
             Task {
@@ -32,7 +37,7 @@ struct ContentView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .firstTextBaseline) {
+            HStack(alignment: .center) {
                 Text("Video Downloader")
                     .font(.title2)
                     .fontWeight(.bold)
