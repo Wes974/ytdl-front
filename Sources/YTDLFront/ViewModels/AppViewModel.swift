@@ -16,11 +16,6 @@ final class AppViewModel: ObservableObject {
 
     @Published var showUpdatePrompt = false
     @Published var updatePromptMessage = ""
-    @Published var autoOpenInFinder = false {
-        didSet {
-            defaults.set(autoOpenInFinder, forKey: Keys.autoOpenInFinder)
-        }
-    }
     @Published var isLogPanelExpanded = false {
         didSet {
             defaults.set(isLogPanelExpanded, forKey: Keys.isLogPanelExpanded)
@@ -89,7 +84,6 @@ final class AppViewModel: ObservableObject {
         } else {
             self.outputDirectory = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask)[0]
         }
-        self.autoOpenInFinder = defaults.bool(forKey: Keys.autoOpenInFinder)
         self.isLogPanelExpanded = defaults.bool(forKey: Keys.isLogPanelExpanded)
     }
 
@@ -353,9 +347,6 @@ final class AppViewModel: ObservableObject {
                     queueItems[index].detail = "Termine"
                     queueItems[index].outputPath = result.outputURL.path
                     appendLog("Termine: \(result.outputURL.lastPathComponent)")
-                    if autoOpenInFinder {
-                        NSWorkspace.shared.activateFileViewerSelecting([result.outputURL])
-                    }
                 }
             } catch is CancellationError {
                 if let index = queueItems.firstIndex(where: { $0.id == itemID }) {
@@ -441,7 +432,6 @@ final class AppViewModel: ObservableObject {
 
     private enum Keys {
         static let outputDirectoryPath = "app.outputDirectoryPath"
-        static let autoOpenInFinder = "app.autoOpenInFinder"
         static let isLogPanelExpanded = "app.isLogPanelExpanded"
     }
 }

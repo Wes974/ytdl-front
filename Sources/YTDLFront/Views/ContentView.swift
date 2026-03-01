@@ -48,9 +48,6 @@ struct ContentView: View {
                     .background(Color.blue.opacity(0.15))
                     .cornerRadius(8)
                 Spacer()
-                Toggle("Afficher le fichier termine", isOn: $viewModel.autoOpenInFinder)
-                    .toggleStyle(.switch)
-                    .font(.caption)
             }
 
             Text("Colle une ou plusieurs URLs, la file traite une video a la fois pour fiabilite max sur anciens Mac.")
@@ -186,34 +183,40 @@ struct ContentView: View {
     }
 
     private var logPanel: some View {
-        GroupBox(label: Text("Journal")) {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Button(action: {
-                        viewModel.isLogPanelExpanded.toggle()
-                    }) {
-                        HStack(spacing: 6) {
-                            Image(systemName: viewModel.isLogPanelExpanded ? "chevron.down" : "chevron.right")
-                                .font(.caption)
-                            Text(viewModel.isLogPanelExpanded ? "Masquer le journal" : "Afficher le journal")
-                                .font(.caption)
-                        }
-                    }
-                    .buttonStyle(.plain)
-
+        VStack(alignment: .leading, spacing: 0) {
+            Button(action: {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    viewModel.isLogPanelExpanded.toggle()
+                }
+            }) {
+                HStack(spacing: 8) {
+                    Image(systemName: viewModel.isLogPanelExpanded ? "chevron.down" : "chevron.right")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Text("Journal")
+                        .font(.headline)
+                    Spacer()
                     Text("\(viewModel.logs.count) ligne(s)")
                         .font(.caption)
                         .foregroundColor(.secondary)
-                    Spacer()
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
 
-                    if viewModel.isLogPanelExpanded {
+            if viewModel.isLogPanelExpanded {
+                Divider()
+
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Spacer()
                         Button("Nettoyer") {
                             viewModel.clearLogs()
                         }
                     }
-                }
 
-                if viewModel.isLogPanelExpanded {
                     ScrollView {
                         Text(viewModel.logs.joined(separator: "\n"))
                             .font(.system(size: 12, weight: .regular, design: .monospaced))
@@ -221,8 +224,15 @@ struct ContentView: View {
                     }
                     .frame(minHeight: 120)
                 }
+                .padding(12)
             }
         }
+        .background(Color.secondary.opacity(0.08))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(Color.secondary.opacity(0.18), lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 }
 
