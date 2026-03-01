@@ -10,7 +10,6 @@ App macOS (11+) pour telecharger des videos en MP4 via `yt-dlp` avec file multi-
 - Dossier de sortie configurable
 - Resume de file (en attente/en cours/termines/erreurs)
 - Retenter les erreurs en lot + copie des liens en erreur
-- Option ouverture automatique du fichier termine dans Finder
 - Check MAJ `yt-dlp` quotidien + bouton manuel
 - Installation MAJ uniquement sur action utilisateur
 - Verification checksum SHA-256 + rollback automatique en cas d'echec
@@ -60,6 +59,7 @@ Plan de release recommande pour partage utilisateur final (ex: installation chez
 
 2) Configurer un profil `notarytool` (une seule fois):
 
+```bash
 xcrun notarytool store-credentials "AC_PROFILE" \
   --apple-id "<ton-apple-id>" \
   --team-id "LT9VN8QXU9" \
@@ -84,6 +84,18 @@ Sortie: `dist/Video Downloader.dmg`
 
 - envoyer `dist/Video Downloader.dmg`
 - installation cible: ouvrir DMG, glisser l'app dans `Applications`, lancer
+
+## Publier une GitHub Release (1 commande)
+
+```bash
+NOTARY_PROFILE=AC_PROFILE ./scripts/publish-release.sh V2
+```
+
+Le script:
+
+- rebuild + signe + notarise + staple le DMG (sauf si `--skip-notarize`)
+- cree ou met a jour la release GitHub du tag cible
+- upload `dist/Video Downloader.dmg` comme asset
 
 Checklist detaillee: `docs/RELEASE_CHECKLIST.md`
 

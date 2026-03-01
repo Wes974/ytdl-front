@@ -51,3 +51,15 @@ Also test manually on another Mac account or another machine:
 
 - Share only `dist/Video Downloader.dmg`
 - Include install instruction: open DMG, drag to Applications, launch
+
+## Optional: publish on GitHub automatically
+
+```bash
+NOTARY_PROFILE=AC_PROFILE ./scripts/publish-release.sh <tag>
+```
+
+Example:
+
+```bash
+NOTARY_PROFILE=AC_PROFILE ./scripts/publish-release.sh V2
+```
