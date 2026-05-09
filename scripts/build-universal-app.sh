@@ -30,6 +30,12 @@ mkdir -p "$APP_BUNDLE/Contents/Frameworks"
 cp "$UNIVERSAL_BUILD" "$APP_BUNDLE/Contents/MacOS/$APP_EXECUTABLE"
 chmod +x "$APP_BUNDLE/Contents/MacOS/$APP_EXECUTABLE"
 
+# SwiftPM does not add the bundle's Frameworks/ directory to the executable's
+# rpath search list, so dyld can't resolve `@rpath/Sparkle.framework/...` and
+# the app crashes at launch on any machine other than the dev box. Patch it in.
+install_name_tool -add_rpath "@executable_path/../Frameworks" \
+  "$APP_BUNDLE/Contents/MacOS/$APP_EXECUTABLE"
+
 cp "$ROOT_DIR/Packaging/Info.plist" "$APP_BUNDLE/Contents/Info.plist"
 
 # Embed Sparkle.framework (universal slice from the SPM-fetched xcframework).
