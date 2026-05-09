@@ -81,13 +81,17 @@ final class BinaryManager: @unchecked Sendable {
     }
 
     private func ensureFFmpeg() async throws {
-        if fileManager.fileExists(atPath: ffmpegURL.path) {
-            try makeExecutable(ffmpegURL)
+        // Prefer bundled over cached so that an app update brings a refreshed ffmpeg
+        // even when the previous version left a (possibly arch-mismatched) binary in
+        // Application Support. yt-dlp can be auto-updated independently — ffmpeg
+        // cannot, so the bundle is the source of truth.
+        if let bundled = bundledBinary(named: "ffmpeg") {
+            try refreshBinaryFromBundle(bundled: bundled, destination: ffmpegURL)
             return
         }
 
-        if let bundled = bundledBinary(named: "ffmpeg") {
-            try copyBinary(from: bundled, to: ffmpegURL)
+        if fileManager.fileExists(atPath: ffmpegURL.path) {
+            try makeExecutable(ffmpegURL)
             return
         }
 
@@ -96,18 +100,34 @@ final class BinaryManager: @unchecked Sendable {
     }
 
     private func ensureFFprobe() async throws {
+        if let bundled = bundledBinary(named: "ffprobe") {
+            try refreshBinaryFromBundle(bundled: bundled, destination: ffprobeURL)
+            return
+        }
+
         if fileManager.fileExists(atPath: ffprobeURL.path) {
             try makeExecutable(ffprobeURL)
             return
         }
 
-        if let bundled = bundledBinary(named: "ffprobe") {
-            try copyBinary(from: bundled, to: ffprobeURL)
+        try await downloadEvermeetBinary(named: "ffprobe", destinationURL: ffprobeURL)
+        try makeExecutable(ffprobeURL)
+    }
+
+    private func refreshBinaryFromBundle(bundled: URL, destination: URL) throws {
+        // Skip the copy when the cached file is byte-for-byte identical to the bundle,
+        // so unchanged launches are O(stat) instead of O(80MB).
+        if let bundledSize = try? bundled.resourceValues(forKeys: [.fileSizeKey]).fileSize,
+           let cachedSize = try? destination.resourceValues(forKeys: [.fileSizeKey]).fileSize,
+           bundledSize == cachedSize,
+           let bundledMtime = try? bundled.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate,
+           let cachedMtime = try? destination.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate,
+           bundledMtime == cachedMtime {
+            try makeExecutable(destination)
             return
         }
 
-        try await downloadEvermeetBinary(named: "ffprobe", destinationURL: ffprobeURL)
-        try makeExecutable(ffprobeURL)
+        try copyBinary(from: bundled, to: destination)
     }
 
     private func bundledBinary(named name: String) -> URL? {

@@ -105,6 +105,9 @@ final class AppViewModel: ObservableObject {
             currentYTDLPVersion = try await readYTDLPVersion()
             statusLine = "Pret."
             appendLog("Version yt-dlp active: \(currentYTDLPVersion)")
+            if let ffmpegBanner = try? await readFFmpegBanner() {
+                appendLog("Version ffmpeg: \(ffmpegBanner)")
+            }
 
             let result = try await updateService.checkForUpdate(currentVersion: currentYTDLPVersion)
             handleUpdateResult(result)
@@ -177,8 +180,20 @@ final class AppViewModel: ObservableObject {
             return
         }
 
-        let fileURL = URL(fileURLWithPath: outputPath)
-        NSWorkspace.shared.activateFileViewerSelecting([fileURL])
+        // `open -R` is more reliable than NSWorkspace.activateFileViewerSelecting,
+        // which silently no-ops on machines where Apple Events to Finder haven't
+        // been authorized (and the auth prompt doesn't always trigger).
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+        process.arguments = ["-R", outputPath]
+        do {
+            try process.run()
+        } catch {
+            appendLog("Afficher: \(error.localizedDescription) — chemin: \(outputPath)")
+            // Last-resort fallback: open the parent folder.
+            let parent = URL(fileURLWithPath: outputPath).deletingLastPathComponent()
+            NSWorkspace.shared.open(parent)
+        }
     }
 
     func copyFailedLinks() {
@@ -400,6 +415,15 @@ final class AppViewModel: ObservableObject {
         }
 
         return result.output.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func readFFmpegBanner() async throws -> String {
+        let result = try await CommandLineTool.run(executableURL: binaryManager.ffmpegURL, arguments: ["-version"])
+        guard result.exitCode == 0,
+              let firstLine = result.output.split(separator: "\n").first else {
+            return "-"
+        }
+        return String(firstLine).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func handleUpdateResult(_ result: UpdateCheckResult) {
