@@ -19,7 +19,11 @@ if [[ ! -x "$SPARKLE_BIN" ]]; then
   exit 1
 fi
 
-# generate_keys writes status messages to stderr and the public key to stdout.
+# First call (no args) generates the key if missing; on existing keys this is a no-op
+# that prints the same Info.plist snippet. We discard its output.
+"$SPARKLE_BIN" >/dev/null 2>&1 || true
+
+# Then -p prints just the public key, suitable for capture.
 PUBLIC_KEY="$("$SPARKLE_BIN" -p)"
 
 if [[ -z "$PUBLIC_KEY" ]]; then
