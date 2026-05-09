@@ -378,10 +378,19 @@ final class AppViewModel: ObservableObject {
         case .status(let detail):
             queueItems[index].detail = detail
         case .log(let line):
-            if line.lowercased().contains("error") {
+            if Self.shouldSurfaceInJournal(line: line) {
                 appendLog("[\(shortID(itemID))] \(line)")
             }
         }
+    }
+
+    private static func shouldSurfaceInJournal(line: String) -> Bool {
+        let lowered = line.lowercased()
+        return lowered.contains("error")
+            || lowered.contains("warning")
+            || lowered.contains("[postprocessor]")
+            || lowered.contains("[merger]")
+            || lowered.contains("[ffmpeg]")
     }
 
     private func readYTDLPVersion() async throws -> String {

@@ -52,39 +52,61 @@ final class DownloadRunner: @unchecked Sendable {
             remoteURL.absoluteString
         ]
 
+        let fallbackArgs: [String] = [
+            "--no-playlist",
+            "--newline",
+            "--progress",
+            "--ffmpeg-location", binaryManager.binDirectory.path,
+            "--print", "after_move:__YTDL_FILE__:%(filepath)s",
+            "--paths", outputDirectory.path,
+            "-o", outputTemplate,
+            "-f", "bv*+ba/b",
+            "--merge-output-format", "mp4",
+            "--recode-video", "mp4",
+            remoteURL.absoluteString
+        ]
+
+        var firstPassPaths: [String] = []
         do {
-            let output = try await runYTDLP(arguments: directMP4Args, token: token, onEvent: onEvent)
-            return DownloadResult(outputURL: output)
+            firstPassPaths = try await runYTDLP(arguments: directMP4Args, token: token, onEvent: onEvent)
+            if let merged = pickMergedMP4(from: firstPassPaths) {
+                return DownloadResult(outputURL: merged)
+            }
+            onEvent(.log("[YTDLFront] Sortie non-mergee detectee, fallback recodage MP4."))
         } catch {
             if token.isCancelled {
                 throw CancellationError()
             }
-
-            onEvent(.log("Fallback recodage MP4 active."))
-            let fallbackArgs: [String] = [
-                "--no-playlist",
-                "--newline",
-                "--progress",
-                "--ffmpeg-location", binaryManager.binDirectory.path,
-                "--print", "after_move:__YTDL_FILE__:%(filepath)s",
-                "--paths", outputDirectory.path,
-                "-o", outputTemplate,
-                "-f", "bv*+ba/b",
-                "--merge-output-format", "mp4",
-                "--recode-video", "mp4",
-                remoteURL.absoluteString
-            ]
-
-            let output = try await runYTDLP(arguments: fallbackArgs, token: token, onEvent: onEvent)
-            return DownloadResult(outputURL: output)
+            onEvent(.log("[YTDLFront] Premiere passe yt-dlp echouee, fallback recodage MP4."))
         }
+
+        // Remove any residual files from the first pass so the fallback can re-create them cleanly.
+        for path in firstPassPaths {
+            try? FileManager.default.removeItem(atPath: path)
+        }
+
+        let fallbackPaths = try await runYTDLP(arguments: fallbackArgs, token: token, onEvent: onEvent)
+        guard let merged = pickMergedMP4(from: fallbackPaths) else {
+            throw DownloadRunnerError.noOutputFile
+        }
+        return DownloadResult(outputURL: merged)
+    }
+
+    private func pickMergedMP4(from paths: [String]) -> URL? {
+        // After a successful merge, yt-dlp emits exactly one `after_move` line for the final .mp4.
+        // Multiple paths or a non-mp4 path means the merge was skipped (e.g. ffmpeg unusable) and
+        // the result is a silent .mp4 + side .m4a — caller should retry with --recode-video.
+        guard paths.count == 1, paths[0].lowercased().hasSuffix(".mp4") else {
+            return nil
+        }
+        return URL(fileURLWithPath: paths[0])
     }
 
     private func runYTDLP(
         arguments: [String],
         token: ProcessToken,
         onEvent: @escaping @Sendable (DownloadEvent) -> Void
-    ) async throws -> URL {
+    ) async throws -> [String] {
         let process = Process()
         process.executableURL = binaryManager.ytDlpURL
         process.arguments = arguments
@@ -93,7 +115,7 @@ final class DownloadRunner: @unchecked Sendable {
         process.standardOutput = outputPipe
         process.standardError = outputPipe
 
-        let result: (Int32, String, String?) = try await withCheckedThrowingContinuation { continuation in
+        let result: (Int32, String, [String]) = try await withCheckedThrowingContinuation { continuation in
             let collector = OutputCollector()
 
             let handleLine: @Sendable (String) -> Void = { rawLine in
@@ -107,7 +129,7 @@ final class DownloadRunner: @unchecked Sendable {
                 if let range = line.range(of: "__YTDL_FILE__:") {
                     let path = String(line[range.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
                     if !path.isEmpty {
-                        collector.setOutputPath(path)
+                        collector.appendOutputPath(path)
                     }
                 }
 
@@ -135,7 +157,7 @@ final class DownloadRunner: @unchecked Sendable {
 
                 let result = collector.finalize(remaining: remaining, handleLine: handleLine)
 
-                continuation.resume(returning: (terminated.terminationStatus, result.output, result.path))
+                continuation.resume(returning: (terminated.terminationStatus, result.output, result.paths))
             }
 
             do {
@@ -158,11 +180,7 @@ final class DownloadRunner: @unchecked Sendable {
             throw DownloadRunnerError.ytDlpFailed("yt-dlp a echoue.\n\(lines)")
         }
 
-        guard let outputPath = result.2 else {
-            throw DownloadRunnerError.noOutputFile
-        }
-
-        return URL(fileURLWithPath: outputPath)
+        return result.2
     }
 
     private static func extractProgress(from line: String) -> Double? {
@@ -207,11 +225,11 @@ private final class OutputCollector: @unchecked Sendable {
     private let lock = NSLock()
     private var mergedData = Data()
     private var partialLine = ""
-    private var detectedOutputPath: String?
+    private var outputPaths: [String] = []
 
-    func setOutputPath(_ path: String) {
+    func appendOutputPath(_ path: String) {
         lock.lock()
-        detectedOutputPath = path
+        outputPaths.append(path)
         lock.unlock()
     }
 
@@ -235,7 +253,7 @@ private final class OutputCollector: @unchecked Sendable {
         }
     }
 
-    func finalize(remaining: Data, handleLine: (String) -> Void) -> (output: String, path: String?) {
+    func finalize(remaining: Data, handleLine: (String) -> Void) -> (output: String, paths: [String]) {
         lock.lock()
         mergedData.append(remaining)
         if let tailText = String(data: remaining, encoding: .utf8) {
@@ -244,13 +262,16 @@ private final class OutputCollector: @unchecked Sendable {
         let trailing = partialLine
         partialLine = ""
         let output = String(decoding: mergedData, as: UTF8.self)
-        let path = detectedOutputPath
         lock.unlock()
 
         if !trailing.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             handleLine(trailing)
         }
 
-        return (output, path)
+        lock.lock()
+        let paths = outputPaths
+        lock.unlock()
+
+        return (output, paths)
     }
 }

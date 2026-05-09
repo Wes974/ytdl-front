@@ -32,7 +32,7 @@ enum UpdateServiceError: LocalizedError {
     }
 }
 
-final class UpdateService: @unchecked Sendable {
+actor UpdateService {
     private let defaults = UserDefaults.standard
     private let updateCheckInterval: TimeInterval = 24 * 60 * 60
 
@@ -52,13 +52,13 @@ final class UpdateService: @unchecked Sendable {
         }
 
         let release = try await fetchLatestRelease()
-        defaults.set(Date(), forKey: lastCheckKey)
 
         let normalizedCurrent = (currentVersion ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         let normalizedRemote = release.tagName.trimmingCharacters(in: .whitespacesAndNewlines)
 
         guard isRemoteVersionNewer(remote: normalizedRemote, current: normalizedCurrent) else {
             pendingUpdate = nil
+            defaults.set(Date(), forKey: lastCheckKey)
             return .upToDate
         }
 
@@ -81,6 +81,7 @@ final class UpdateService: @unchecked Sendable {
             binaryURL: ytDlpAsset.browserDownloadURL,
             expectedSHA256: checksum
         )
+        defaults.set(Date(), forKey: lastCheckKey)
 
         return .available(normalizedRemote)
     }
