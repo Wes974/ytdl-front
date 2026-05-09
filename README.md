@@ -96,8 +96,35 @@ Le script:
 - rebuild + signe + notarise + staple le DMG (sauf si `--skip-notarize`)
 - cree ou met a jour la release GitHub du tag cible
 - upload `dist/Video Downloader.dmg` comme asset
+- met a jour `appcast.xml` (Sparkle) si la cle publique a deja ete configuree
 
 Checklist detaillee: `docs/RELEASE_CHECKLIST.md`
+
+## Auto-update (Sparkle) - setup initial une seule fois
+
+L'app verifie automatiquement les mises a jour au demarrage via Sparkle.
+Le DMG est signe avec une cle EdDSA dont la partie privee reste sur ta
+machine (Keychain) et la partie publique est codee en dur dans l'app.
+
+```bash
+swift build           # populate les outils CLI Sparkle dans .build/artifacts/
+./scripts/setup-sparkle.sh
+```
+
+Le script genere la paire de cles (premier run uniquement), ecrit la cle
+publique dans `Packaging/Info.plist` (remplace le placeholder
+`__SPARKLE_PUBLIC_ED_KEY__`) et te dit de commit. La cle privee n'est
+JAMAIS dans le repo.
+
+A chaque release, `publish-release.sh` ajoutera automatiquement l'entree
+correspondante dans `appcast.xml`. Il reste a:
+
+```bash
+git add appcast.xml && git commit -m "release: appcast for VX" && git push
+```
+
+Sans ca, Sparkle ne verra pas la nouvelle version (l'appcast est servi
+depuis `raw.githubusercontent.com/Wes974/ytdl-front/master/appcast.xml`).
 
 ## Notes
 

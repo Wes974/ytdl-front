@@ -25,11 +25,21 @@ echo "[4/5] Assemble .app bundle"
 rm -rf "$APP_BUNDLE"
 mkdir -p "$APP_BUNDLE/Contents/MacOS"
 mkdir -p "$APP_BUNDLE/Contents/Resources/bin"
+mkdir -p "$APP_BUNDLE/Contents/Frameworks"
 
 cp "$UNIVERSAL_BUILD" "$APP_BUNDLE/Contents/MacOS/$APP_EXECUTABLE"
 chmod +x "$APP_BUNDLE/Contents/MacOS/$APP_EXECUTABLE"
 
 cp "$ROOT_DIR/Packaging/Info.plist" "$APP_BUNDLE/Contents/Info.plist"
+
+# Embed Sparkle.framework (universal slice from the SPM-fetched xcframework).
+SPARKLE_SOURCE="$ROOT_DIR/.build/artifacts/sparkle/Sparkle/Sparkle.xcframework/macos-arm64_x86_64/Sparkle.framework"
+if [[ ! -d "$SPARKLE_SOURCE" ]]; then
+  echo "Sparkle universal framework missing at $SPARKLE_SOURCE"
+  echo "Run \`swift build\` once to populate the SPM artifacts cache."
+  exit 1
+fi
+cp -R "$SPARKLE_SOURCE" "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework"
 
 if [[ -d "$ROOT_DIR/Resources/Binaries" ]]; then
   cp -R "$ROOT_DIR/Resources/Binaries/." "$APP_BUNDLE/Contents/Resources/bin/"

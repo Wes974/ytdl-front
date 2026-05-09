@@ -145,3 +145,10 @@ fi
 
 release_url="$(gh release view "$TAG" --json url --jq .url "${repo_args[@]}")"
 echo "Release published: $release_url"
+
+# Auto-update appcast if Sparkle public key has been wired in. Skips silently
+# while the placeholder is still in Info.plist (i.e. before setup-sparkle.sh ran).
+if ! grep -q "__SPARKLE_PUBLIC_ED_KEY__" "$ROOT_DIR/Packaging/Info.plist"; then
+  notes="$(gh release view "$TAG" --json body --jq .body "${repo_args[@]}" 2>/dev/null || echo "Mise a jour disponible.")"
+  "$ROOT_DIR/scripts/update-appcast.sh" "$TAG" "$notes"
+fi

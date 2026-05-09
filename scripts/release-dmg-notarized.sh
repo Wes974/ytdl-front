@@ -22,7 +22,7 @@ fi
 
 "$ROOT_DIR/scripts/build-universal-app.sh"
 
-echo "Signing embedded binaries"
+echo "Signing embedded ffmpeg/yt-dlp/ffprobe"
 if [[ -d "$APP_BUNDLE/Contents/Resources/bin" ]]; then
   while IFS= read -r binary; do
     base_name="$(basename "$binary")"
@@ -30,6 +30,24 @@ if [[ -d "$APP_BUNDLE/Contents/Resources/bin" ]]; then
       codesign --force --timestamp --options runtime --sign "$SIGNING_IDENTITY" "$binary"
     fi
   done < <(find "$APP_BUNDLE/Contents/Resources/bin" -type f)
+fi
+
+# Sparkle: nested components must be signed BEFORE the outer framework, in this order.
+# Per Sparkle docs (sparkle-project.org/documentation/sandboxing): no --deep, preserve
+# entitlements only on Downloader.xpc.
+SPARKLE_FW="$APP_BUNDLE/Contents/Frameworks/Sparkle.framework"
+if [[ -d "$SPARKLE_FW" ]]; then
+  echo "Signing Sparkle XPC services and helpers"
+  codesign --force --timestamp --options runtime --sign "$SIGNING_IDENTITY" \
+    "$SPARKLE_FW/Versions/B/XPCServices/Installer.xpc"
+  codesign --force --timestamp --options runtime --preserve-metadata=entitlements --sign "$SIGNING_IDENTITY" \
+    "$SPARKLE_FW/Versions/B/XPCServices/Downloader.xpc"
+  codesign --force --timestamp --options runtime --sign "$SIGNING_IDENTITY" \
+    "$SPARKLE_FW/Versions/B/Autoupdate"
+  codesign --force --timestamp --options runtime --sign "$SIGNING_IDENTITY" \
+    "$SPARKLE_FW/Versions/B/Updater.app"
+  codesign --force --timestamp --options runtime --sign "$SIGNING_IDENTITY" \
+    "$SPARKLE_FW"
 fi
 
 echo "Signing app bundle"
