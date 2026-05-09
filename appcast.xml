@@ -2,7 +2,24 @@
 <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/">
     <channel>
         <title>Video Downloader</title>
-                <item>
+                        <item>
+            <title>Video Downloader V2.3</title>
+            <pubDate>Sat, 09 May 2026 13:52:17 +0000</pubDate>
+            <sparkle:version>5</sparkle:version>
+            <sparkle:shortVersionString>0.2.3</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>11.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[<p>## Summary
+- Release V2.3 of Video Downloader for macOS 11+
+- Universal build (Intel + Apple Silicon)
+- DMG signed, notarized, and stapled
+
+## Installation
+1. Open the DMG
+2. Drag "Video Downloader" to Applications
+3. Launch the app from Applications</p>]]></description>
+            <enclosure url="https://github.com/Wes974/ytdl-front/releases/download/V2.3/Video.Downloader.dmg" sparkle:edSignature="v/rGALsfS1jVta1AGb4RL9M41+2rSmgtdZmY9ToBBlM8f6wMbPXW29U2fJqQoe2Eh14trwrIlAK/gIY1w7YLCQ==" length="148595702" type="application/octet-stream"/>
+        </item>
+<item>
             <title>Video Downloader V2.2</title>
             <pubDate>Sat, 09 May 2026 13:38:07 +0000</pubDate>
             <sparkle:version>4</sparkle:version>
