@@ -48,7 +48,17 @@ if [[ -z "$ED_SIG" || -z "$LENGTH" ]]; then
 fi
 
 PUB_DATE="$(date -u +'%a, %d %b %Y %H:%M:%S +0000')"
-DOWNLOAD_URL="https://github.com/$GITHUB_REPO/releases/download/$TAG/${APP_NAME// /%20}.dmg"
+
+# GitHub rewrites spaces in asset filenames (e.g. "Video Downloader.dmg" becomes
+# "Video.Downloader.dmg" in download URLs). Query the API for the authoritative
+# URL instead of guessing the encoding.
+DOWNLOAD_URL="$(gh release view "$TAG" --repo "$GITHUB_REPO" --json assets \
+  --jq '.assets[] | select(.name | endswith(".dmg")) | .url' | head -1)"
+
+if [[ -z "$DOWNLOAD_URL" ]]; then
+  echo "Could not resolve DMG download URL from gh release view (release $TAG, repo $GITHUB_REPO)."
+  exit 1
+fi
 
 # Pass the dynamic fields through env vars so XML special chars can't break injection.
 export ITEM_TITLE="$APP_NAME $TAG"

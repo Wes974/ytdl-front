@@ -4,7 +4,7 @@
         <title>Video Downloader</title>
         <item>
             <title>Video Downloader V2.1</title>
-            <pubDate>Sat, 09 May 2026 13:18:08 +0000</pubDate>
+            <pubDate>Sat, 09 May 2026 13:24:28 +0000</pubDate>
             <sparkle:version>3</sparkle:version>
             <sparkle:shortVersionString>0.2.1</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>11.0</sparkle:minimumSystemVersion>
@@ -17,7 +17,7 @@
 1. Open the DMG
 2. Drag "Video Downloader" to Applications
 3. Launch the app from Applications</p>]]></description>
-            <enclosure url="https://github.com/Wes974/ytdl-front/releases/download/V2.1/Video%20Downloader.dmg" sparkle:edSignature="mvh44xTOdVKK1dF4Cf8j1mt9kD4bvn7H/ABHXvfHfEStS5U0Vrd0DEK60ridn4es6CcrdY+MbOGiS+vLxJa/Dw==" length="149201926" type="application/octet-stream"/>
+            <enclosure url="https://github.com/Wes974/ytdl-front/releases/download/V2.1/Video.Downloader.dmg" sparkle:edSignature="mvh44xTOdVKK1dF4Cf8j1mt9kD4bvn7H/ABHXvfHfEStS5U0Vrd0DEK60ridn4es6CcrdY+MbOGiS+vLxJa/Dw==" length="149201926" type="application/octet-stream"/>
         </item>
     </channel>
 </rss>
